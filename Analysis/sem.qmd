@@ -1,0 +1,237 @@
+---
+SS---
+title: "SEM"
+format: html
+editor: visual
+---
+
+## Load Library
+
+```{r}
+library(lavaan)
+library(ggplot2)
+library(tidySEM)
+library(dplyr)
+```
+
+##Load data
+
+```{r}
+library(googlesheets4)
+gs4_deauth()
+url <- "https://docs.google.com/spreadsheets/d/1bRuHEEMXeIL1qe1aXm8kpSuXhE6kZQ7wyq3sgZaZ3rM"
+
+# Tampilkan daftar sheet di workbook
+sheets <- sheet_names(url)
+print(sheets)
+```
+
+
+```{r}
+library(googlesheets4)
+
+# 2. Jika sheet publik, non-aktifkan auth
+gs4_deauth()
+
+# 3. Baca data dari Google Sheets
+url <- "https://docs.google.com/spreadsheets/d/1bRuHEEMXeIL1qe1aXm8kpSuXhE6kZQ7wyq3sgZaZ3rM/edit?gid=940060496"
+data <- read_sheet(url, sheet = "cleanDataGabung")  
+```
+
+
+```{r}
+#data("HolzingerSwineford1939")
+#head(HolzingerSwineford1939)
+
+data <- read.delim("clipboard", header = TRUE, sep = "\t")
+
+#data <- read.delim("clipboard")
+#str(data)
+```
+
+```{r}
+length(x)       # misalnya 1
+length(value)   # misalnya 46
+
+```
+
+
+```{r}
+colnames(data) <- c("JK", "Kampus", "Akred", "Jurusan", "Domisili", "Semester",
+                    "X1","X2a","X2b","X2c","X2d",
+                    "X3a","X3b","X3c","X3d","X3e","X3f",
+                    "X4a","X4b","X4c","X4d","X4e0","X4e","X4f",
+                    "X5","X6","X7","X8","X9","X10","X11","X12","X13","X14",
+                    "X16","X17","X18","X19","X20","X21",
+                    "Y1","Y2","Y3","Y4","Y5","X15")
+str(data)
+```
+
+## Preprocessing
+
+```{r}
+data.cln <- data %>%
+          mutate(JK.f = ifelse(JK=="Perempuan",1,0),
+                 JK.m = ifelse(JK=="Laki-laki ",1,0),
+                 Akred = ordered(Akred, levels=c("Baik","B","Baik Sekali","A","Unggul")),
+                 Semester = ordered(Semester, levels=c("Semester 2","Semester 4","Semester 6","> Semester 6")),
+                 X1 = ordered(X1, levels=c("<2jam","2-5 jam",">5 jam jam")),
+                 X2a = ifelse(X2a==T,1,0),
+                 X2b = ifelse(X2b==T,1,0),
+                 X2c = ifelse(X2c==T,1,0),
+                 X2d = ifelse(X2d==T,1,0),
+                 X3a = ifelse(X3a==T,1,0),
+                 X3b = ifelse(X3b==T,1,0),
+                 X3c = ifelse(X3c==T,1,0),
+                 X3d = ifelse(X3d==T,1,0),
+                 X3e = ifelse(X3e==T,1,0),
+                 X3f = ifelse(X3f==T,1,0),
+                 X4a = ifelse(X4a==T,1,0),
+                 X4b = ifelse(X4b==T,1,0),
+                 X4c = ifelse(X4c==T,1,0),
+                 X4d = ifelse(X4d==T,1,0),
+                 X4e = ifelse(X4e==T,1,0),
+                 X4f = ifelse(X4f==T,1,0),
+                 X5 = factor(X5,ordered = T),
+                 X6 = factor(X6,ordered = T),
+                 X7 = factor(X7,ordered = T),
+                 X8 = factor(X8,ordered = T),
+                 X9 = factor(X9,ordered = T),
+                 X10 = factor(X10,ordered = T),
+                 X11 = ordered(X11, levels=c("15 menit","30 menit","> 30 menit")),
+                 X12 = factor(X12,ordered = T),
+                 X13 = factor(X13,ordered = T),
+                 X14 = factor(X14,ordered = T),
+                 X15 = ordered(X15, levels=c("Tidak","Pernah, tetapi saat ini tidak aktif","Ya")),
+                 X16 = ordered(X16, levels=c("Tidak Pernah","1-2 kali","3-5 kali","> 5 kali")),
+                 X17 = ifelse(X17=="Pernah",1,0),
+                 X18 = factor(X18,ordered = T),
+                 X19 = factor(X19,ordered = T),
+                 X20 = factor(X20,ordered = T),
+                 X21 = factor(X21,ordered = T),
+                 Y2 = factor(Y2,ordered = T),
+                 Y3 = factor(Y3,ordered = T),
+                 Y4 = factor(Y4,ordered = T),
+                 Y5 = factor(Y5,ordered = T)
+                 ) 
+
+str(data.cln)
+```
+
+```{r}
+#Cek adanya hubungan jenis kelamin dengan IPK
+data.cln %>%
+  group_by(JK) %>%
+  summarize(Mean = mean(Y1, na.rm=TRUE))
+
+model.tes1 <- lm(Y1 ~ JK, data=data.cln)
+summary(model.tes1)
+
+#Input missing value dari rata-rata IPK per group
+data.cln <- data.cln %>%
+  group_by(JK) %>%
+  mutate(Y1 = ifelse(is.na(Y1), mean(Y1, na.rm = TRUE), Y1)) %>%
+  ungroup()
+```
+
+```{r}
+#Ubah nilai IPK yg < 2
+data.cln <- data.cln %>% 
+    mutate(Y1 = replace(Y1, Y1 < 2, 2))
+
+min(data.cln$Y1)
+```
+
+##Modelling The `echo: false` option disables the printing of code (only output is displayed).
+
+```{r}
+model <- '
+  Demog  =~ JK.f + JK.m + Akred + Semester
+  Scr.time =~ X1 + X2a + X2b + X2c + X2d + X3a + X3b + X3c + X3d + X3e + X3f + X4a + X4b + X4c + X4d + X4e + X4f + X5 + X6 + X7
+  Manag =~ X8 + X9 + X10 + X11 + X12 + X13 + X14
+  Org =~ X15 + X16 + X17 + X18 + X19 + X20
+  Akademik =~ Y1 + Y2 + Y3 + Y4 + Y5 
+  Akademik ~ Demog + Scr.time + Manag + Org'
+```
+
+```{r}
+fit <- sem(model, data = data.cln)
+summary(fit, fit.measures = TRUE, standardized = TRUE)
+```
+
+
+```{r}
+# pastikan sudah ter-install & di-load
+# install.packages(c("dplyr","ggplot2"))
+library(dplyr)
+library(ggplot2)
+
+# Fungsi bantu: hitung frekuensi & persen, lalu buat label
+make_pct_df <- function(var){
+  data.cln %>%
+    count(!!sym(var)) %>%                    # hitung n per kategori
+    mutate(
+      pct   = n / sum(n) * 100,              # persentase
+      label = paste0(!!sym(var), "\n",      # label: Kategori + newline + %
+                     round(pct, 1), "%")
+    )
+}
+
+# 1a. Pie chart JK
+df_jk <- make_pct_df("JK")
+ggplot(df_jk, aes(x = "", y = n, fill = JK)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  theme_void() +
+  geom_text(aes(label = label),
+            position = position_stack(vjust = 0.5),
+            size = 4) +
+  labs(title = "Distribusi Jenis Kelamin (Persentase)")
+
+# 1b. Pie chart Akreditasi
+df_ak <- make_pct_df("Akred")
+ggplot(df_ak, aes(x = "", y = n, fill = Akred)) +
+  geom_col(width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  theme_void() +
+  geom_text(aes(label = label),
+            position = position_stack(vjust = 0.5),
+            size = 4) +
+  labs(title = "Distribusi Akreditasi (Persentase)")
+
+```
+
+
+
+
+```{r}
+library(dplyr)
+
+# Hanya hitung frekuensi
+data.cln %>% 
+  count(JK)
+
+data.cln %>% 
+  count(Akred)
+
+# Jika mau tambah kolom persentase
+data.cln %>% 
+  count(JK) %>% 
+  mutate(pct = round(n / sum(n) * 100, 1))
+
+data.cln %>% 
+  count(Akred) %>% 
+  mutate(pct = round(n / sum(n) * 100, 1))
+
+```
+
+```{r}
+url <- "https://docs.google.com/spreadsheets/d/1bRuHEEMXeIL1qe1aXm8kpSuXhE6kZQ7wyq3sgZaZ3rM/edit?gid=940060496"
+data <- read_sheet(url, sheet = "Akreditasi-Eksplorasi")  
+```
+
+```{r}
+data %>% 
+  count(Akreditasi)
+```
+

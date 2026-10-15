@@ -1,0 +1,242 @@
+---
+title: "Olah Data MPC"
+author: "Jasmin Nur Hanifa - M0501241060"
+date: "2025-05-28"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+```
+
+
+## Input Data
+```{r}
+data <- read.csv("D:\\S2\\Semester 2\\MPC\\Tugas\\Kelompok 4 -MPC\\Data\\Survei Prokrastinasi_ Antara Swipe dan Studi (Gabung) - Sheet1.csv", sep=",")
+head(data)
+str(data)
+```
+
+## Pra Proses Data
+### Hapus kolom
+```{r}
+data_new <- data %>% dplyr::select(-c(7, 12, 19:20))
+colnames(data_new)
+```
+
+
+### Ubah tipe data
+
+```{r}
+unique(data_new$Semester)
+unique(data_new$Screentime_sebelum_tugas)
+unique(data_new$Organisasi_kampus)
+unique(data_new$Pengurus_inti)
+unique(data_new$Aktif_organisasi.kepanitiaan)
+unique(data_new$Domisili)
+unique(data$IPK)
+```
+
+
+```{r}
+library(dplyr)
+library(stringr)
+
+data_new <- data_new %>%
+  mutate(
+    Jenis_Kelamin = factor(Jenis_Kelamin),
+    Domisili = factor(Domisili, levels = c("Tangerang", "Bogor", "Jakarta", "Depok","Bekasi")),
+    Semester = factor(Semester, levels = c("Semester 2", "Semester 4", "Semester 6", "> Semester 6")),
+    Rata_screentime_harian = factor(Rata_screentime_harian),
+    Aktivitas_media_sosial = as.logical(ifelse(Aktivitas_media_sosial == "TRUE", TRUE, FALSE)),
+    
+    Dampak_medsos_produktivitas = as.numeric(Dampak_medsos_produktivitas),
+    Menetapkan_prioritas = as.numeric(Menetapkan_prioritas),
+    Pengaruh_organisasi_terhadap_belajar = as.numeric(Pengaruh_organisasi_terhadap_belajar),
+    Aktif_kegiatan_kelas = as.numeric(Aktif_kegiatan_kelas),
+    Semangat_belajar = as.numeric(Semangat_belajar),
+    Puas_capaian_akademik = as.numeric(Puas_capaian_akademik),
+    IPK = as.numeric(gsub(",", ".", IPK)),  # Ganti koma dengan titik dan ubah ke numeric
+    
+   Screentime_sebelum_tugas = factor(Screentime_sebelum_tugas, levels = c("15 menit", "30 menit", "> 30 menit")),
+    
+    Organisasi_kampus = factor(Organisasi_kampus, levels = c("1-2 kali", "3-5 kali", "> 5 kali", "Tidak Pernah")),
+    Pengurus_inti = factor(Pengurus_inti, levels = c("Pernah", "Tidak Pernah")),
+    
+   `Aktif_organisasi.kepanitiaan` = factor(`Aktif_organisasi.kepanitiaan`, levels = c("Ya", "Tidak", "Pernah, tetapi saat ini tidak aktif")),
+    
+    # Ubah kolom yang berisi "FALSE"/"TRUE" string jadi logical
+    Aplikasi_X = as.logical(toupper(Aplikasi_X)), 
+    Aplikasi_pembelajaran_st = as.logical(toupper(Aplikasi_pembelajaran_st)),
+    Aplikasi_lainnya = as.logical(toupper(Aplikasi_lainnya)),
+    
+    # Ubah kolom angka dalam bentuk chr jadi numeric
+    Internet_akademik_harian = as.numeric(Internet_akademik_harian),
+    Terdistraksi_saat_belajar = as.numeric(Terdistraksi_saat_belajar)
+  )
+
+str(data_new)
+```
+
+```{r}
+levels(data_new$Screentime_sebelum_tugas)
+```
+
+### Missing value
+```{r}
+colSums(is.na(data_new))
+```
+```{r}
+# Assuming cleanDataGabung is your data frame
+write.csv(data_new, "cleanDataGabung.csv", row.names = FALSE)
+
+```
+
+
+## EDA
+
+```{r}
+library(dplyr)
+library(plotly)
+
+# Hitung jumlah berdasarkan domisili
+domisili_usage <- data_new %>%
+  count(Domisili) %>%
+  mutate(Persen = 100 * n / sum(n))
+
+# Membuat Pie Chart Interaktif
+domisili_pie_chart <- plot_ly(
+  domisili_usage,
+  labels = ~Domisili,
+  values = ~Persen,
+  type = "pie",
+  textinfo = "label+percent",
+  textposition = "outside",
+  hoverinfo = "label+percent",
+  showlegend = TRUE
+) %>%
+  plotly::layout(
+    title = list(text = "Sebaran Domisili Responden"),
+    xaxis = list(showgrid = FALSE, zeroline = FALSE),
+    yaxis = list(showgrid = FALSE, zeroline = FALSE)
+  )
+
+# Tampilkan grafik
+domisili_pie_chart
+
+```
+
+
+
+
+```{r}
+# Pastikan paket yang dibutuhkan sudah terinstall
+install.packages("plotly")
+library(plotly)
+library(dplyr)
+library(tidyr)
+
+# Hitung jumlah penggunaan TRUE dan FALSE untuk masing-masing aplikasi
+app_usage <- data_new %>%
+  select(Aplikasi_tiktok, Aplikasi_whatsapp, Aplikasi_youtube, Aplikasi_X, Aplikasi_pembelajaran_st, Aplikasi_lainnya) %>%
+  summarise_all(~sum(. == TRUE, na.rm = TRUE))
+
+# Ubah menjadi format long agar bisa dipakai untuk pie chart
+app_usage_long <- app_usage %>%
+  pivot_longer(cols = everything(), names_to = "Aplikasi", values_to = "Jumlah") %>%
+  mutate(Persen = 100 * Jumlah / sum(Jumlah))
+
+# Ganti nama aplikasi sesuai permintaan
+app_usage_long$Aplikasi <- recode(app_usage_long$Aplikasi,
+                                  "Aplikasi_tiktok" = "TikTok",
+                                  "Aplikasi_whatsapp" = "Whatsapp",
+                                  "Aplikasi_X" = "X",
+                                  "Aplikasi_youtube" = "YouTube",
+                                  "Aplikasi_pembelajaran_st" = "Aplikasi belajar",
+                                  "Aplikasi_lainnya" = "lainnya")
+
+# Membuat Pie Chart Interaktif dengan plotly
+pie_chart <- plot_ly(app_usage_long, labels = ~Aplikasi, values = ~Persen, type = 'pie',
+                     textinfo = 'label+percent', textposition = 'outside',
+                     hoverinfo = 'label+percent', showlegend = TRUE) %>%
+  layout(title = "Proporsi Penggunaan Aplikasi",
+         xaxis = list(showgrid = FALSE, zeroline = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE))
+
+# Tampilkan Pie Chart yang interaktif
+pie_chart
+```
+
+
+```{r}
+# Menghitung frekuensi aktivitas yang dilakukan (nilai TRUE)
+aktivitas_usage <- data_new %>%
+  summarise(
+    Aktivitas_akademik = sum(Aktivitas_akademik == TRUE, na.rm = TRUE),
+    Aktivitas_hiburan = sum(Aktivitas_hiburan == TRUE, na.rm = TRUE),
+    Aktivitas_media_sosial = sum(Aktivitas_media_sosial == TRUE, na.rm = TRUE),
+    Aktivitas_belanja_online = sum(Aktivitas_belanja_online == TRUE, na.rm = TRUE),
+    Aktivitas_komunikasi_pribadi = sum(Aktivitas_komunikasi_pribadi == TRUE, na.rm = TRUE),
+    Aktivitas_lainnya = sum(Aktivitas_lainnya == TRUE, na.rm = TRUE)
+  ) %>%
+  gather(key = "Aktivitas", value = "Jumlah") %>%
+  mutate(Persen = 100 * Jumlah / sum(Jumlah))  # Menghitung persentase
+
+# Mengganti nama variabel sesuai permintaan
+aktivitas_usage$Aktivitas <- recode(aktivitas_usage$Aktivitas,
+                                    "Aktivitas_akademik" = "Akademik",
+                                    "Aktivitas_hiburan" = "Hiburan",
+                                    "Aktivitas_media_sosial" = "Media Sosial",
+                                    "Aktivitas_belanja_online" = "Belanja Online",
+                                    "Aktivitas_komunikasi_pribadi" = "Komunikasi Pribadi",
+                                    "Aktivitas_lainnya" = "Lainnya")
+
+# Membuat Pie Chart Interaktif untuk Aktivitas dengan plotly
+aktivitas_pie_chart <- plot_ly(aktivitas_usage, labels = ~Aktivitas, values = ~Persen, type = 'pie',
+                               textinfo = 'label+percent', textposition = 'outside',
+                               hoverinfo = 'label+percent', showlegend = TRUE) %>%
+  layout(title = "Sebaran Aktivitas yang Dilakukan",
+         xaxis = list(showgrid = FALSE, zeroline = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE))
+
+# Tampilkan Pie Chart yang interaktif
+aktivitas_pie_chart
+
+```
+
+
+
+
+
+```{r}
+# Distribusi nilai IPK
+summary(data_new$IPK)
+
+# Distribusi semester
+summary(data_new$Semester)
+
+# Distribusi waktu screen-time per hari
+summary(data_new$Rata_screentime_harian)
+
+# Distribusi distraksi saat belajar
+summary(data_new$Terdistraksi_saat_belajar)
+
+# Visualisasi distribusi IPK dan waktu screen-time
+library(ggplot2)
+
+ggplot(data_new, aes(x = IPK)) +
+  geom_histogram(bins = 10, fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Distribusi IPK", x = "IPK", y = "Frekuensi")
+
+ggplot(data_new, aes(x = Rata_screentime_harian)) +
+  geom_bar(fill = "lightgreen", color = "black") +
+  theme_minimal() +
+  labs(title = "Distribusi Rata-rata Screen-Time Harian", x = "Screen-Time", y = "Frekuensi")
+
+```
+
+
+
